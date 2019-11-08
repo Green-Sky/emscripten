@@ -682,6 +682,12 @@ function convertJsFunctionToWasm(func, sig) {
     'd': 0x7c, // f64
   };
 
+#if ASSERTIONS
+  for (var i = 0; i < sigParam.length; ++i) {
+    assert(typeCodes[sigParam[i]]); // typecodes must be valid
+  }
+#endif
+
   // Parameters, length + signatures
   typeSection.push(sigParam.length);
   for (var i = 0; i < sigParam.length; ++i) {
@@ -700,6 +706,38 @@ function convertJsFunctionToWasm(func, sig) {
   // (excepting the 2 bytes for the section id and length)
   typeSection[1] = typeSection.length - 2;
 
+  var signaturesSection = [
+    0x03, // id: signatures
+    0x02, // size
+    0x01, // one function
+    0x00, // of that one type
+  ];
+
+  var codeSection = [
+    0x0A, // id: code
+    0x00, // length: 0 (placeholder)
+    0x01, // count: 1
+    // The function starts here
+    0x00, // length: 0 (placeholder)
+    0x00, // no additional locals besides the parameters
+  ];
+
+  // Function body: read the parameters, do the call
+  for (var i = 1; i < sigParam.length; ++i) {
+    codeSection.push(0x20); // local.get
+    codeSection.push(typeCodes[sigParam[i]]);
+  }
+
+  codeSection.push(0x10); // call
+  codeSection.push(0x00); // the imported function
+
+  // Update the code section sizes
+  codeSection[1] = codeSection.length - 2;
+#if ASSERTIONS
+  assert(codeSection[1] <= 127); // must fit in LEB
+#endif
+  codeSection[3] = codeSection.length - 4;
+
   // Rest of the module is static
   var bytes = new Uint8Array([
     0x00, 0x61, 0x73, 0x6d, // magic ("\0asm")
@@ -709,9 +747,9 @@ function convertJsFunctionToWasm(func, sig) {
       // (import "e" "f" (func 0 (type 0)))
       0x01, 0x01, 0x65, 0x01, 0x66, 0x00, 0x00,
     0x07, 0x05, // export section
-      // (export "f" (func 0 (type 0)))
-      0x01, 0x01, 0x66, 0x00, 0x00,
-  ]));
+      // (export "f" (func 1 (type 0)))
+      0x01, 0x01, 0x66, 0x00, 0x01,
+  ], signaturesSection, codeSection));
 
    // We can compile this wasm module synchronously because it is very small.
   // This accepts an import (at "e.f"), that it reroutes to an export (at "f")

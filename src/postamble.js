@@ -210,6 +210,8 @@ function callMain(args) {
   var initialEmtStackTop = Module['emtStackSave']();
 #endif
 
+console.log('call main', wasmTable.get(1), wasmTable.get(1) === THE_FUNC);
+
   try {
 #if BENCHMARK
     var start = Date.now();
