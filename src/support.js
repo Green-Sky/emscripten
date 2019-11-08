@@ -661,6 +661,7 @@ var functionPointers = new Array({{{ RESERVED_FUNCTION_POINTERS }}});
 // we create a wasm module that takes the JS function as an import with a given
 // signature, and re-exports that as a wasm function.
 function convertJsFunctionToWasm(func, sig) {
+console.log('convert!', sig);
 #if WASM2JS
   return func;
 #else // WASM2JS
@@ -725,11 +726,13 @@ function convertJsFunctionToWasm(func, sig) {
   // Function body: read the parameters, do the call
   for (var i = 1; i < sigParam.length; ++i) {
     codeSection.push(0x20); // local.get
-    codeSection.push(typeCodes[sigParam[i]]);
+    codeSection.push(i);
   }
 
   codeSection.push(0x10); // call
   codeSection.push(0x00); // the imported function
+  codeSection.push(0x00); // end
+  codeSection.push(0x0B); // end
 
   // Update the code section sizes
   codeSection[1] = codeSection.length - 2;
@@ -746,10 +749,15 @@ function convertJsFunctionToWasm(func, sig) {
     0x02, 0x07, // import section
       // (import "e" "f" (func 0 (type 0)))
       0x01, 0x01, 0x65, 0x01, 0x66, 0x00, 0x00,
+  ], signaturesSection, [
     0x07, 0x05, // export section
       // (export "f" (func 1 (type 0)))
       0x01, 0x01, 0x66, 0x00, 0x01,
-  ], signaturesSection, codeSection));
+  ], codeSection));
+
+console.log('write');
+require('fs').writeFileSync('z.wasm', new Uint8Array(bytes));
+console.log('wrote');
 
    // We can compile this wasm module synchronously because it is very small.
   // This accepts an import (at "e.f"), that it reroutes to an export (at "f")
